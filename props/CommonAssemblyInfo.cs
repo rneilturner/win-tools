@@ -27,7 +27,10 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-//AssemblyVersion
-//AssemblyFileVersion
-//AssemblyCopyright
-//AssemblyCompany 
+[assembly: AssemblyVersion("14.0.0.13456")]
+
+[assembly: AssemblyFileVersion("14.0.0.13456")]
+
+[assembly: AssemblyCopyright("Copyright © 2015 Put Your Company Name Here")]
+
+[assembly: AssemblyCompany("Put Your Company Name Here")] 

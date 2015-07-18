@@ -14,10 +14,6 @@
               <File Id='xenGuestAgentEXE' Name='XenGuestAgent.exe' DiskId='1' Source='..\XenGuestAgent\$(var.Configuration)\XenGuestAgent.exe' KeyPath='yes'/>
             </Component>
 
-            <Component Id="xcDiag" Guid="{DCDCBB13-5009-416b-A6AB-FCA852BA1C89}">
-              <File Id='xcdiag' Name='xcdiag.exe' DiskId='1' Source='..\XenGuestAgent\$(var.Configuration)\xcdiag.exe' KeyPath='yes'/>
-            </Component>
-
           </Directory>
         </Directory>
       </Directory>

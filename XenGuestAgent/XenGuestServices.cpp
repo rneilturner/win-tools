@@ -45,7 +45,7 @@ HRESULT CXenGuestServices::FinalConstruct()
 		}
 
 		// Open an XS instance for use by this object
-		if (!m_clXs.XS2Open())
+                if (!m_clXs.XSPVDriverOpen())
 		{
 			hr = LogCreateFailure((IDS_FAILED_TO_OPEN_XENSTORE___HRESUL_XENGUESTSERVICES_32),
 								  E_FAIL);
@@ -96,7 +96,7 @@ void CXenGuestServices::FinalRelease()
 	m_pclXga->UnregisterXgs();
 
 	m_clXh.CloseTransport();
-	m_clXs.XS2Close();
+        m_clXs.XSPVDriverClose();
 
 	FreeVmList();
 
@@ -200,19 +200,16 @@ VOID CXenGuestServices::FreeResources()
 
 bool CXenGuestServices::CheckVmFocus()
 {
-	LPSTR pszVal;
-	bool rc;
+        char pszVal[MAX_PATH + 1];
 
-	pszVal = (LPSTR)m_clXs.XS2Read("switcher/have_focus", NULL);
-	if (pszVal == NULL)
+        if (false == m_clXs.XSPVDriverRead("switcher/have_focus", sizeof(pszVal), pszVal))
 		return true;
 
-	if ((USHORT)strtol(pszVal, NULL, 10) != 0)
+        bool rc;
+        if ((USHORT)strtol(pszVal, NULL, 10) != 0)
 		rc = true;
 	else
 		rc = false;
-
-	m_clXs.XS2Free(pszVal);
 
 	return rc;
 }
@@ -466,7 +463,7 @@ STDMETHODIMP CXenGuestServices::SwitchToVm(ULONG ulSlot)
 		return S_FALSE;
 
 	_snprintf_s(szData, XGS_SWITCH_LEN, _TRUNCATE, "switch slot %d", ulSlot);
-	if (!m_clXs.XS2Write("switcher/command", szData))
+        if (!m_clXs.XSPVDriverWrite("switcher/command", szData))
 		return E_FAIL;
 
 	return S_OK;

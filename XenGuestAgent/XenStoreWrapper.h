@@ -23,7 +23,7 @@
 
 #pragma once
 #include "resource.h"       // main symbols
-#include "xs2.h"
+#include "XenPVDAccess.h"
 
 #define XSW_MAX_WATCHES 16
 
@@ -31,9 +31,9 @@ class CXenStoreWrapper
 {
 private:
 	static void       *m_fps;
-	static HMODULE     m_hxs2;
+        static HMODULE     m_hXSPVDriver;
 
-	struct xs2_handle *m_xsh;
+        void *m_xsh;
 	LPVOID             m_watches[16];
 	
 	
@@ -45,21 +45,19 @@ public:
 
 	~CXenStoreWrapper()
 	{
-		XS2Close();
+                XSPVDriverClose();
 	}
 
-	static bool XS2Initialize();
-	static void XS2Uninitialize();
+        static bool XSPVDriverInitialize();
+        static void XSPVDriverUninitialize();
 	
-	bool XS2Open();
-	bool XS2Close();
-	void XS2Free(LPVOID pvMem);
-	bool XS2Write(LPCSTR szPath, LPCSTR szData);
-	bool XS2WriteBin(LPCSTR szPath, LPVOID pvData, DWORD dwLen);
-	LPVOID XS2Read(LPCSTR szPath, LPDWORD pdwCount);
-	LPSTR* XS2Directory(LPCSTR szPath, LPDWORD pdwCount);
-	void XS2FreeDirectory(LPSTR* pszDir, DWORD dwCount);
-	bool XS2Remove(LPCSTR szPath);
-	LPVOID XS2Watch(LPCSTR szPath, HANDLE hEvent);
-	void XS2Unwatch(LPVOID pvWatch);
+        bool XSPVDriverOpen();
+        bool XSPVDriverClose();
+        bool XSPVDriverWrite(LPCSTR szPath, LPCSTR szData);
+        bool XSPVDriverWriteBin(LPCSTR szPath, LPVOID pvData, DWORD dwLen);
+        bool XSPVDriverRead(LPCSTR szPath, size_t bufferSize, char *result);
+        bool XSPVDriverDirectory(LPCSTR szPath, size_t bufferByteCount, char *resultBuffer, unsigned &listCount);
+        bool XSPVDriverRemove(LPCSTR szPath);
+        LPVOID XSPVDriverWatch(LPCSTR szPath, HANDLE hEvent);
+        void XSPVDriverUnwatch(LPVOID pvWatch);
 };

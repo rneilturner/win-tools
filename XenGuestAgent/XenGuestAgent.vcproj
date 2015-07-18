@@ -54,7 +54,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories=".;jsoncpp\include;&quot;$(XenSourceRoot)/inc&quot;;&quot;$(XenSourceRoot)/xenhdrs&quot;;&quot;$(XenSourceRoot)/xenuser/xs2&quot;"
+                                AdditionalIncludeDirectories=".;jsoncpp\include;&quot;$(XenSourceRoot)/inc&quot;;&quot;$(XenSourceRoot)/xenhdrs&quot;;&quot;$(XenSourceRoot)/xenuser/XSPVDriver&quot;"
 				PreprocessorDefinitions="WIN32;_WINDOWS;_DEBUG"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -147,7 +147,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="2"
-				AdditionalIncludeDirectories=".;jsoncpp\include;&quot;$(XenSourceRoot)/inc&quot;;&quot;$(XenSourceRoot)/xenhdrs&quot;;&quot;$(XenSourceRoot)/xenuser/xs2&quot;"
+                                AdditionalIncludeDirectories=".;jsoncpp\include;&quot;$(XenSourceRoot)/inc&quot;;&quot;$(XenSourceRoot)/xenhdrs&quot;;&quot;$(XenSourceRoot)/xenuser/XSPVDriver&quot;"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
 				RuntimeLibrary="0"
 				UsePrecompiledHeader="0"

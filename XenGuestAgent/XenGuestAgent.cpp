@@ -432,10 +432,10 @@ public :
 
 	HRESULT Start(int nShowCmd) throw()
 	{
-		// Explicitly load the xs2.dll here for use in the service.
-		if (!CXenStoreWrapper::XS2Initialize())
+                // Explicitly load the xsPVDrivers.dll here for use in the service.
+                if (!CXenStoreWrapper::XSPVDriverInitialize())
 		{
-			_XenGuestAgent.LogEventTypeId(ctxLS(IDS_FAILED_TO_LOAD_XS2_LIBRARY___ERR_XENGUESTAGENT_413),
+                        _XenGuestAgent.LogEventTypeId(ctxLS(IDS_FAILED_TO_LOAD_XSPVDRIVER_LIBRARY___ERR_XENGUESTAGENT_413),
 										  EVENTLOG_ERROR_TYPE, EVMSG_START_FAILURE, ::GetLastError());
 			return E_FAIL;
 		}
@@ -705,33 +705,28 @@ bool CXenGuestAgent::Start()
 {
 	//Find and set VM UUID
 	CXenStoreWrapper clXs;
-	DWORD dwCount = 0;
-	LPSTR pszVal;
-	char szPath[_MAX_PATH + 1];
 
-	if (!clXs.XS2Open())
+        if (!clXs.XSPVDriverOpen())
 	{
-		LogEventTypeId(ctxLS(IDS_XS2OPEN_FAILED_FOR_START__NOT_RU_XENGUESTAGENT_689),
+                LogEventTypeId(ctxLS(IDS_XSPVDRIVEROPEN_FAILED_FOR_START__NOT_RU_XENGUESTAGENT_689),
 					   EVENTLOG_WARNING_TYPE, EVMSG_WARNING, ::GetLastError());
 		return true;
 	}
 
-	pszVal = (LPSTR)clXs.XS2Read("vm", NULL);
-	if (pszVal == NULL)
+        char pszVal[_MAX_PATH + 1];
+        if (false == clXs.XSPVDriverRead("vm", sizeof(pszVal), pszVal))
 	{
-		LogEventTypeId(ctxLS(IDS_XS2READ_FAILED_FOR_VM___ERROR__z_XENGUESTAGENT_697),
+                LogEventTypeId(ctxLS(IDS_XSPVDRIVERREAD_FAILED_FOR_VM___ERROR__z_XENGUESTAGENT_697),
 					   EVENTLOG_ERROR_TYPE, EVMSG_OPERATION_FAILURE, ::GetLastError());
 		return false;
 	}
 
-	// Form the absolute path with our UUID
+        char szPath[_MAX_PATH + 1];
+        // Form the absolute path with our UUID
 	_snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "%s/uuid", pszVal);
-	clXs.XS2Free(pszVal);
-	pszVal = (LPSTR)clXs.XS2Read(szPath, &dwCount);	
-	if ((pszVal == NULL)||(dwCount < 36))
+
+        if ((false == clXs.XSPVDriverRead(szPath, sizeof(pszVal), pszVal)) || (strlen(pszVal) < 36))
 	{
-		if (pszVal != NULL)
-			clXs.XS2Free(pszVal);
 		return false;
 	}
 	// This is our UUID
@@ -762,17 +757,13 @@ bool CXenGuestAgent::Start()
 
 	//Get our dom ID
 	_snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", pszVal, "domid");		
-	clXs.XS2Free(pszVal);
 
-	pszVal = (LPSTR)clXs.XS2Read(szPath, NULL);
-	if (pszVal == NULL)
+        if (false == clXs.XSPVDriverRead(szPath, sizeof(pszVal), pszVal))
 	{
-		LogEventTypeId(ctxLS(IDS_XS2READ_FAILED_FOR_VM___ERROR__z_XENGUESTAGENT_720),
+                LogEventTypeId(ctxLS(IDS_XSPVDRIVERREAD_FAILED_FOR_VM___ERROR__z_XENGUESTAGENT_720),
 			EVENTLOG_ERROR_TYPE, EVMSG_OPERATION_FAILURE, ::GetLastError());
 	}
 	m_bstrDomId = CComBSTR(CA2W(pszVal,CP_UTF8));
-
-	clXs.XS2Free(pszVal);
 
 	// Start the XenStore notify thread
 	m_hTaskThread = (HANDLE)_beginthreadex(NULL, 0, CXenGuestAgent::_TaskThread, this, 0, (UINT*)&m_uiTaskThreadId);
@@ -1272,104 +1263,136 @@ void CXenGuestAgent::RemoveAlertsShared(XGS_ALERTS_SHARED *pAlertsShared)
 
 CXGSVM** CXenGuestAgent::LoadVms(DWORD *pdwCount)
 {
-	DWORD dwCount = 0, i;
-	CXenStoreWrapper clXs;
-	LPSTR* ppszList;
-	LPSTR  pszVal;
-	CXGSVM **ppVms = NULL;
-	char szPath[_MAX_PATH + 1];
-
 	*pdwCount = 0;
 
-	if (!clXs.XS2Open())
+        CXenStoreWrapper clXs;
+        if (!clXs.XSPVDriverOpen())
 	{
-		LogEventTypeId(ctxLS(IDS_XS2OPEN_FAILED_FOR_LOADVMS___ERR_XENGUESTAGENT_1090),
+                LogEventTypeId(ctxLS(IDS_XSPVDRIVEROPEN_FAILED_FOR_LOADVMS___ERR_XENGUESTAGENT_1090),
 					   EVENTLOG_ERROR_TYPE, EVMSG_OPERATION_FAILURE, ::GetLastError());
 		return NULL;
 	}
 
-	ppszList = clXs.XS2Directory("/xenmgr/vms", &dwCount);
+        unsigned listCount;
+        unsigned bufferByteCount = 512;
+        char *resultBuffer;
+
+        do {
+            int errorCode;
+            resultBuffer = new char[bufferByteCount];
+            if (0 == resultBuffer) {
+                SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                LogEventTypeId(ctxLS(IDS_XSPVDRIVERDIRECTORY_NO_VMS_RETURNED____XENGUESTAGENT_1101),
+                                           EVENTLOG_ERROR_TYPE, EVMSG_OPERATION_FAILURE);
+                return 0;
+            }
+
+            if (clXs.XSPVDriverDirectory("/xenmgr/vms", sizeof(resultBuffer), resultBuffer, listCount)) {
+                break;
+            }
+            delete[] resultBuffer;
+            errorCode = GetLastError();
+            if (ERROR_INSUFFICIENT_BUFFER == errorCode) {
+                bufferByteCount += 512;
+                // Loop fallout here
+                if (MAX_PATH * 100 < bufferByteCount) {
+                    LogEventTypeId(ctxLS(IDS_XSPVDRIVERDIRECTORY_NO_VMS_RETURNED____XENGUESTAGENT_1101),
+                                               EVENTLOG_ERROR_TYPE, EVMSG_OPERATION_FAILURE);
+                    SetLastError(errorCode);
+                    return 0;
+                }
+            }
+            else {
+                SetLastError(errorCode);
+                LogEventTypeId(ctxLS(IDS_XSPVDRIVERDIRECTORY_NO_VMS_RETURNED____XENGUESTAGENT_1101),
+                                           EVENTLOG_ERROR_TYPE, EVMSG_OPERATION_FAILURE);
+                return 0;
+            }
+        } while (1);
+
 	// Should at least be one, i.e. us
-	if ((ppszList == NULL)||(dwCount == 0)) 
+        if (0 == listCount)
 	{
-		if (ppszList != NULL)
-			clXs.XS2FreeDirectory(ppszList, 0);
-		LogEventTypeId(ctxLS(IDS_XS2DIRECTORY_NO_VMS_RETURNED____XENGUESTAGENT_1101),
-					   EVENTLOG_ERROR_TYPE, EVMSG_OPERATION_FAILURE);
-		return NULL;
+            LogEventTypeId(ctxLS(IDS_XSPVDRIVERDIRECTORY_NO_VMS_RETURNED____XENGUESTAGENT_1101),
+                                       EVENTLOG_ERROR_TYPE, EVMSG_OPERATION_FAILURE);
+            delete[] resultBuffer;
+            return 0;
 	}
 
 	// Allocate storage for them
-	try
+        CXGSVM **ppVms = NULL;
+        try
 	{
-		ppVms = new CXGSVM*[dwCount];
-		if (ppVms == NULL)
-			return NULL;
+                ppVms = new CXGSVM*[listCount];
+                if (ppVms == NULL) {
+                    delete[] resultBuffer;
+                    return NULL;
+                }
 	}
 	catch (std::bad_alloc & /*ba*/)
 	{
-		return NULL;
+            delete[] resultBuffer;
+            return NULL;
 	}
 
-	for (i = 0; i < dwCount; i++)
+        unsigned i;
+        for (i = 0; i < listCount; i++)
 	{
 		try
 		{
 			ppVms[i] = new CXGSVM();
 			if (ppVms[i] == NULL)
 			{
-				FreeVms(ppVms, i + 1);
-				return NULL;
+                            delete[] resultBuffer;
+                            FreeVms(ppVms, i + 1);
+                            return NULL;
 			}
 		}
 		catch(std::bad_alloc & /*ba*/)
 		{
-			FreeVms(ppVms, i + 1);
-			return NULL;
-		}
+                    delete[] resultBuffer;
+                    FreeVms(ppVms, i + 1);
+                    return NULL;
+            }
 	}
 
-	// Loop and load info for each VM 
-	for (i = 0; i < dwCount; i++)
+        // Loop and load info for each VM
+        char *bufferPosition = resultBuffer;
+        for (i = 0; i < listCount; i++)
 	{
-		ppVms[i]->m_bstrUuid = CComBSTR(ppszList[i]);
+
+                ppVms[i]->m_bstrUuid = CComBSTR(bufferPosition);
 		
-		_snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", ppszList[i], "name");
-		pszVal = (LPSTR)clXs.XS2Read(szPath, NULL);
-		if (pszVal != NULL)
+                char szPath[_MAX_PATH + 1];
+                _snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", bufferPosition, "name");
+                char pszVal[_MAX_PATH + 1];
+                if (clXs.XSPVDriverRead(szPath, sizeof(pszVal), pszVal))
 		{
 			ppVms[i]->m_bstrName = CComBSTR(CA2W(pszVal,CP_UTF8));
-			clXs.XS2Free(pszVal);
 		}
 		else
 			ppVms[i]->m_bstrName = L"";
 		
-		_snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", ppszList[i], "image");
-		pszVal = (LPSTR)clXs.XS2Read(szPath, NULL);
-		if (pszVal != NULL)
+                _snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", bufferPosition, "image");
+                if (clXs.XSPVDriverRead(szPath, sizeof(pszVal), pszVal))
 		{
 			ppVms[i]->m_bstrImage = CComBSTR(CA2W(pszVal,CP_UTF8));
-			clXs.XS2Free(pszVal);
 		}
 		else
 			ppVms[i]->m_bstrImage = L"";
 
-		_snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", ppszList[i], "domid");		
-		pszVal = (LPSTR)clXs.XS2Read(szPath, NULL);
-		if (pszVal != NULL)
+                _snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", bufferPosition, "domid");
+                if (clXs.XSPVDriverRead(szPath, sizeof(pszVal), pszVal))
 		{
 			ppVms[i]->m_usDomId = (USHORT)strtol(pszVal, NULL, 10);
-			clXs.XS2Free(pszVal);
 		}
 		else
 			ppVms[i]->m_usDomId = XEN_DOMID_INVALID;
 
-		_snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", ppszList[i], "slot");		
-		pszVal = (LPSTR)clXs.XS2Read(szPath, NULL);
-		if (pszVal != NULL)
+                _snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", bufferPosition, "slot");
+                if (clXs.XSPVDriverRead(szPath, sizeof(pszVal), pszVal))
 		{
 			long const lSlot = strtol(pszVal, NULL, 10);
-			clXs.XS2Free(pszVal);
 
 			if (lSlot == XEN_SLOT_INVALID)
 			{
@@ -1381,7 +1404,7 @@ CXGSVM** CXenGuestAgent::LoadVms(DWORD *pdwCount)
 
 				// this is fugly
 				if (ppVms[i]->m_ulSlot < 0 || ppVms[i]->m_ulSlot > 100) {
-					FreeVms(ppVms, dwCount);
+                                        FreeVms(ppVms, listCount);
 					return NULL;
 				}
 			}
@@ -1389,22 +1412,18 @@ CXGSVM** CXenGuestAgent::LoadVms(DWORD *pdwCount)
 		else
 			ppVms[i]->m_ulSlot = XEN_SLOT_INVALID;
 
-		_snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", ppszList[i], "hidden");
-		pszVal = (LPSTR)clXs.XS2Read(szPath, NULL);
-		if (pszVal != NULL)
+                _snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", bufferPosition, "hidden");
+                if (clXs.XSPVDriverRead(szPath, sizeof(pszVal), pszVal))
 		{
 			ppVms[i]->m_bHidden = ((ULONG)strtol(pszVal, NULL, 10) == 0) ? false : true;
-			clXs.XS2Free(pszVal);
 		}
 		else
 			ppVms[i]->m_bHidden = false;
 
-		_snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", ppszList[i], "uivm");		
-		pszVal = (LPSTR)clXs.XS2Read(szPath, NULL);
-		if (pszVal != NULL)
+                _snprintf_s(szPath, _MAX_PATH, _TRUNCATE, "/xenmgr/vms/%s/%s", bufferPosition, "uivm");
+                if (clXs.XSPVDriverRead(szPath, sizeof(pszVal), pszVal))
 		{
 			ppVms[i]->m_bUivm = ((ULONG)strtol(pszVal, NULL, 10) == 0) ? false : true;
-			clXs.XS2Free(pszVal);
 		}
 		else
 			ppVms[i]->m_bUivm = false;
@@ -1415,11 +1434,15 @@ CXGSVM** CXenGuestAgent::LoadVms(DWORD *pdwCount)
 			ppVms[i]->m_bInvalid = false;
 
 		// Dbus magic happens.
-		GetDbusShowSwitcherBarProperty(ppszList[i], &ppVms[i]->m_bShowSwitcher);
+                GetDbusShowSwitcherBarProperty(bufferPosition, &ppVms[i]->m_bShowSwitcher);
+
+                // Move to the next list entry.
+                bufferPosition = &bufferPosition[strlen(bufferPosition) + 2];
 
 	} // Ends loop over VMs
 
-	*pdwCount = dwCount;
+        delete[] resultBuffer;
+        *pdwCount = listCount;
 	return ppVms;
 }
 
@@ -1661,18 +1684,18 @@ UINT WINAPI CXenGuestAgent::_VmsThread(void *pv)
 	CXenStoreWrapper clXs;
 	LPVOID varr[2] = {0, 0};
 
-	if (!clXs.XS2Open())
+        if (!clXs.XSPVDriverOpen())
 	{
-		pxga->LogEventTypeId(ctxLS(IDS_XS2OPEN_FAILED_FOR_WATCHES___ERR_XENGUESTAGENT_1339),
+                pxga->LogEventTypeId(ctxLS(IDS_XSPVDRIVEROPEN_FAILED_FOR_WATCHES___ERR_XENGUESTAGENT_1339),
 							 EVENTLOG_ERROR_TYPE, EVMSG_START_FAILURE, ::GetLastError());
 		return (UINT)-1;
 	}
 
 	// Watching the VMS path - all of this will change later to use HTTP/V4V
-	varr[0] = clXs.XS2Watch("/xenmgr/vms", pxga->m_hVmsEvent);
+        varr[0] = clXs.XSPVDriverWatch("/xenmgr/vms", pxga->m_hVmsEvent);
 	if (varr[0] == NULL)
 	{
-		clXs.XS2Close();
+                clXs.XSPVDriverClose();
 		pxga->LogEventTypeId(ctxLS(IDS_FAILED_TO_OPEN_XENSTORE_VMS_WATC_XENGUESTAGENT_1349),
 							 EVENTLOG_ERROR_TYPE, EVMSG_START_FAILURE, ::GetLastError());
 		return (UINT)-2;
@@ -1709,7 +1732,7 @@ UINT WINAPI CXenGuestAgent::_VmsThread(void *pv)
 		}
 	} while (true);
 
-	clXs.XS2Close();
+        clXs.XSPVDriverClose();
 
 	return uiRet;
 }
@@ -2249,9 +2272,9 @@ extern "C" int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/
 	_XenGuestAgent.SetShutdownEvent();
 	_XenGuestAgent.Uninitialize();
 
-	// Free the xs2.dll library as late as possible after all threads are done. If
+        // Free the XSPVDriver.dll library as late as possible after all threads are done. If
 	// it was not loaded, the routine will handle that.
-	CXenStoreWrapper::XS2Uninitialize();
+        CXenStoreWrapper::XSPVDriverUninitialize();
 
 	return iRet;
 }

@@ -132,7 +132,7 @@ namespace XenStoreLib
                 pAddressOfxs_close = GetProcAddress(pDll, "_xs2_close@4");
                 pAddressOfxs_read = GetProcAddress(pDll, "_xs2_read@12");
                 pAddressOfxs_write = GetProcAddress(pDll, "_xs2_write@12");
-                pAddressOfxs_write_bin = GetProcAddress(pDll, "_xs2_write_bin@16");
+//                pAddressOfxs_write_bin = GetProcAddress(pDll, "_xs2_write_bin@16");
                 pAddressOfxs_free = GetProcAddress(pDll, "_xs2_free@4");
                 pAddressOfxs_directory = GetProcAddress(pDll, "_xs2_directory@12");
                 pAddressOfxs_remove = GetProcAddress(pDll, "_xs2_remove@8");
@@ -145,7 +145,7 @@ namespace XenStoreLib
                 pAddressOfxs_close = GetProcAddress(pDll, "xs2_close");
                 pAddressOfxs_read = GetProcAddress(pDll, "xs2_read");
                 pAddressOfxs_write = GetProcAddress(pDll, "xs2_write");
-                pAddressOfxs_write_bin = GetProcAddress(pDll, "xs2_write_bin");
+//                pAddressOfxs_write_bin = GetProcAddress(pDll, "xs2_write_bin");
                 pAddressOfxs_free = GetProcAddress(pDll, "xs2_free");
                 pAddressOfxs_directory = GetProcAddress(pDll, "xs2_directory");
                 pAddressOfxs_remove = GetProcAddress(pDll, "xs2_remove");
@@ -167,8 +167,8 @@ namespace XenStoreLib
             //Delegate the dll write pointer to the method xs2_write
             xs2_write = (raw_xs2_write)Marshal.GetDelegateForFunctionPointer(pAddressOfxs_write, typeof(raw_xs2_write));
 
-            //Delegate the dll write bin pointer to the method xs2_write_bin_impl()
-            xs2_write_bin_impl = (raw_xs2_write_bin)Marshal.GetDelegateForFunctionPointer(pAddressOfxs_write_bin, typeof(raw_xs2_write_bin));
+            //Write bin has been depricated. Delegate the dll write bin pointer to the method xs2_write_bin_impl()
+//            xs2_write_bin_impl = (raw_xs2_write_bin)Marshal.GetDelegateForFunctionPointer(pAddressOfxs_write_bin, typeof(raw_xs2_write_bin));
 
             //Delegate the dll free pointer to the method xs2_free()
             xs2_free = (raw_xs2_free)Marshal.GetDelegateForFunctionPointer(pAddressOfxs_free, typeof(raw_xs2_free));
@@ -204,15 +204,16 @@ namespace XenStoreLib
             return result;
         }
 
-        public static bool xs2_write_bin(XenStoreHandle handle, string path, byte[] data, int size)
-        {
-            return xs2_write_bin_impl(handle, path, data, size);
-        }
+        // Write_bin has been depricated
+//        public static bool xs2_write_bin(XenStoreHandle handle, string path, byte[] data, int size)
+//        {
+//            return xs2_write_bin_impl(handle, path, data, size);
+//        }
 
-        public static bool xs2_write_bin(XenStoreHandle handle, string path, byte[] data)
-        {
-            return xs2_write_bin_impl(handle, path, data, data.Length);
-        }
+//        public static bool xs2_write_bin(XenStoreHandle handle, string path, byte[] data)
+//        {
+//            return xs2_write_bin_impl(handle, path, data, data.Length);
+//        }
 
         public static XenStoreMemoryHandle xs2_read(XenStoreHandle handle,
             string path)
@@ -535,10 +536,11 @@ namespace XenStoreLib
         }
         #endregion // IDisposable members
 
-        public bool Write(string path, byte[] data)
-        {
-            return XenStoreFunctions.xs2_write_bin(this.xenStoreHandle, path, data);
-        }
+        // Binary write path has been depricated
+//        public bool Write(string path, byte[] data)
+//        {
+//            return XenStoreFunctions.xs2_write_bin(this.xenStoreHandle, path, data);
+//        }
 
         public bool Write(string path, string data)
         {

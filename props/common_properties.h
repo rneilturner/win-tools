@@ -20,7 +20,7 @@
  * THE SOFTWARE.
  */
 
-#define COMMON_VERSION_STR ""
-#define COMMON_VERSION ""
-#define COMMON_COMPANY ""
-#define COMMON_COPYRIGHT "" 
+#define COMMON_VERSION_STR "14.0.0.13456"
+#define COMMON_VERSION 14,0,0,13456
+#define COMMON_COMPANY "Put Your Company Name Here"
+#define COMMON_COPYRIGHT "Copyright © 2015 Put Your Company Name Here" 
