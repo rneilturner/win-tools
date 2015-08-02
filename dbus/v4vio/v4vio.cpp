@@ -43,7 +43,8 @@
 //  warning C4505: unreferenced local function has been removed
 #endif // _WIN32
 
-#include "v4vapi.h"
+#include <initguid.h>
+#include <OpenXTV4VAccess.h>
 
 #ifdef _WIN32
 #pragma warning (pop)
@@ -146,7 +147,7 @@ private:
   typedef BOOL (WINAPI* CancelIoEx_t)(__in HANDLE hFile, __in_opt LPOVERLAPPED lpOverlapped);
   static OVERLAPPED const initOverlapped;
 
-  V4V_CONTEXT    *m_pcontext;
+  cOpenXTV4V     *m_pcontext;
   ULONG           m_ulRingSize;
   v4v_ring_id_t   m_ringId;
   v4v_addr_t      m_addr;
@@ -162,12 +163,12 @@ private:
   HANDLE          m_heventOverlappedStop;
 
 public:
-  inline OVERLAPPED * getOverlapped() { return m_pcontext != NULL && ((m_pcontext->flags & V4V_FLAG_OVERLAPPED) == V4V_FLAG_OVERLAPPED) ? &m_overlapped : NULL; }
+  inline OVERLAPPED * getOverlapped() { return m_pcontext->TestValid() && m_bOverlapped ? &m_overlapped : NULL; }
   inline HANDLE getOverlappedReadEventHandle() { return m_heventOverlappedRead; }
   inline HANDLE getOverlappedWriteEventHandle() { return m_heventOverlappedWrite; }
   inline HANDLE getOverlappedStopEventHandle() { return m_heventOverlappedStop; }
 
-  static bool checkAsyncOverlappedResult(V4V_CONTEXT const * const pcontext, OVERLAPPED * const poverlapped)
+  static bool checkAsyncOverlappedResult(cOpenXTV4V *const pcontext, OVERLAPPED * const poverlapped)
   {
     bool bContinue = true;
     if (poverlapped != NULL && poverlapped->hEvent != NULL) // If using overlapped io
@@ -178,7 +179,7 @@ public:
       if (bContinue) // If waiting 
       {
         DWORD bytes = 0;
-        bContinue = GetOverlappedResult(pcontext->v4vHandle, poverlapped, &bytes, FALSE) != FALSE;
+        bContinue = GetOverlappedResult(pcontext->GetDriverHandle(), poverlapped, &bytes, FALSE) != FALSE;
 
       } // Ends if waiting
     } // Ends if using overlapped io
@@ -209,7 +210,7 @@ public:
                 ULONG ulPort,
                 ULONG ulRingSize,
                 bool bOverlapped=false,
-                V4V_CONTEXT *pcontext=NULL)
+                cOpenXTV4V *pcontext=NULL)
     : m_pcontext(NULL)
     , m_ulRingSize(ulRingSize)
     , m_bOpen(false)
@@ -225,14 +226,10 @@ public:
   {
     if (pcontext == NULL)
     {
-      pcontext = new V4V_CONTEXT;
+      pcontext = new cOpenXTV4V(ulRingSize, bOverlapped ? &m_overlapped : 0);
     }
-    ::ZeroMemory(pcontext, sizeof(*pcontext));
-    pcontext->flags = V4V_FLAG_NONE;
-
     if (bOverlapped)
     {
-      pcontext->flags |= V4V_FLAG_OVERLAPPED;
       HANDLE heventOverlapped = CreateEvent(NULL, FALSE, FALSE, NULL);
       if (heventOverlapped == NULL)
       {
@@ -277,7 +274,7 @@ private:
 public:
   ~CV4VTransport()
   {
-    V4V_CONTEXT *pcontext = NULL;
+    cOpenXTV4V *pcontext = NULL;
     HMODULE k32 = m_k32;
     HANDLE heventOverlapped = m_overlapped.hEvent;
     HANDLE heventOverlappedRead = m_heventOverlappedRead;
@@ -347,9 +344,9 @@ public:
     std::swap(m_heventOverlappedStop, other.m_heventOverlappedStop);
   }
 
-  V4V_CONTEXT *ReleaseContext()
+  cOpenXTV4V *ReleaseContext()
   {
-    V4V_CONTEXT *pcontext = m_pcontext;
+    cOpenXTV4V *pcontext = m_pcontext;
     m_pcontext = NULL;
     m_bOpen = false;
     m_bOwnsContext = false;
@@ -363,14 +360,14 @@ public:
     {
       OVERLAPPED * const poverlapped = getOverlapped();
 
-      if (V4vOpen(m_pcontext, m_ulRingSize, poverlapped) != FALSE)
+      if (m_pcontext && m_pcontext->TestValid())
       {
         bool bContinue = checkAsyncOverlappedResult(m_pcontext, poverlapped);
 
-        if (bContinue && V4vBind(m_pcontext, &m_ringId, poverlapped) != FALSE)
+        if (bContinue && m_pcontext->Bind(&m_ringId, poverlapped))
         {
           bContinue = checkAsyncOverlappedResult(m_pcontext, poverlapped);
-          if (bContinue && V4vConnect(m_pcontext, &m_addr, poverlapped) != FALSE)
+          if (bContinue && m_pcontext->Connect(&m_addr, poverlapped))
           {
             bOpen = true;
           }
@@ -382,7 +379,7 @@ public:
     return bOpen ? TRUE : FALSE;
   }
 
-  inline const V4V_CONTEXT *GetContext()
+  inline cOpenXTV4V *const GetContext()
   {
     return m_pcontext;
   }
@@ -423,7 +420,7 @@ public:
       DWORD const dwLastError = GetLastError();
 
       // Cancel any current IO.
-      result = CancelIoEx(m_pcontext->v4vHandle, NULL) != FALSE;
+      result = CancelIoEx(m_pcontext->GetDriverHandle(), NULL) != FALSE;
 
       // Tell overlapped IO to stop.
       if (m_heventOverlappedStop != NULL)
@@ -449,7 +446,7 @@ public:
       } // Ends else cancel succeeded
 
       // Ensure that any current reads stop blocking.
-      ::SetEvent(m_pcontext->recvEvent);
+      ::SetEvent(m_pcontext->GetEventHandle());
 
     } // Ends if open
 
@@ -461,7 +458,10 @@ public:
     if (m_bOpen) // If open
     {
       m_bOpen = false;
-      V4vClose(m_pcontext);
+      if (m_pcontext) {
+          delete m_pcontext;
+          m_pcontext = 0;
+      }
       ::SetLastError(ERROR_SUCCESS);
 
     } // Ends if open
@@ -1011,8 +1011,8 @@ TransportData * _V4VIO_CALLCONV connect_v4v_socket(void (_V4VIO_CALLCONV *io_deb
   }
   else
   {
-    //ptransportdata->handles.push_back(ptransportdata->transport.GetContext()->v4vHandle);
-    ptransportdata->handles.push_back(ptransportdata->transport.GetContext()->recvEvent);
+    //ptransportdata->handles.push_back(ptransportdata->transport.GetContext()->GetDriverHandle());
+    ptransportdata->handles.push_back(ptransportdata->transport.GetContext()->GetEventHandle());
     if (io_debug != NULL)
     {
       io_debug(&logpriv, "Connected to V4V\n");
@@ -1153,7 +1153,7 @@ extern "C"
 int _V4VIO_CALLCONV v4v_io_read(void *priv, void *buf, uint32_t count)
 {
   TransportData *ptransportdata  = (TransportData *)priv;
-  V4V_CONTEXT const *pcontext = ptransportdata->transport.GetContext();
+  cOpenXTV4V *const pcontext = ptransportdata->transport.GetContext();
   TransportBuffer &transportbuffer = ptransportdata->transportbuffer;
   size_t transportRead = transportbuffer.readsize();
   bool bReadFile = count != 0;
@@ -1220,7 +1220,7 @@ int _V4VIO_CALLCONV v4v_io_read(void *priv, void *buf, uint32_t count)
 
         do
         {
-          BOOL const bRead = ::ReadFile(pcontext->v4vHandle
+          BOOL const bRead = ::ReadFile(pcontext->GetDriverHandle()
             ,pwritebuffer + dwOffset          // Buffer to read to.
             ,sizeWriteBuffer - dwOffset       // Number of bytes to read.
             ,&dwRead                          // Number of bytes read.
@@ -1258,7 +1258,7 @@ int _V4VIO_CALLCONV v4v_io_read(void *priv, void *buf, uint32_t count)
                   } // Ends if overlapped IO has not completed
                   else // Else overlapped IO has completed
                   {
-                    if (GetOverlappedResult(pcontext->v4vHandle, poverlapped, &dwRead, FALSE) == FALSE) // If failed to get overlapped result
+                    if (GetOverlappedResult(pcontext->GetDriverHandle(), poverlapped, &dwRead, FALSE) == FALSE) // If failed to get overlapped result
                     {
                         showError(ptransportdata, _T("GetOverlappedResult() for read failed"));
                         break;
@@ -1319,7 +1319,7 @@ extern "C"
 int _V4VIO_CALLCONV v4v_io_write(void *priv, const void *buf, uint32_t count)
 {
   TransportData *ptransportdata = (TransportData *)priv;
-  V4V_CONTEXT const *pcontext    = ptransportdata->transport.GetContext();
+  cOpenXTV4V *const pcontext    = ptransportdata->transport.GetContext();
   int result = -1;
 
   if (pcontext != NULL)
@@ -1352,7 +1352,7 @@ int _V4VIO_CALLCONV v4v_io_write(void *priv, const void *buf, uint32_t count)
 
         dwWritten = 0;
 
-        BOOL const bWrite = ::WriteFile(pcontext->v4vHandle
+        BOOL const bWrite = ::WriteFile(pcontext->GetDriverHandle()
           ,pchbuf      // Buffer.
           ,dwToWrite   // Number of bytes to write.
           ,&dwWritten  // Number of bytes written.
@@ -1390,7 +1390,7 @@ int _V4VIO_CALLCONV v4v_io_write(void *priv, const void *buf, uint32_t count)
                 } // Ends if overlapped IO has not completed
                 else // Else overlapped IO has completed
                 {
-                  if (GetOverlappedResult(pcontext->v4vHandle, poverlapped, &dwWritten, FALSE) == FALSE) // If failed to get overlapped result
+                  if (GetOverlappedResult(pcontext->GetDriverHandle(), poverlapped, &dwWritten, FALSE) == FALSE) // If failed to get overlapped result
                   {
                       showError(ptransportdata, _T("GetOverlappedResult() for write failed"));
                       break;

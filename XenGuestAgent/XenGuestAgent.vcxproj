@@ -48,7 +48,7 @@
     <IntDir>$(XenGuestAgentIntermediateDir)\</IntDir>
     <IgnoreImportLibrary>true</IgnoreImportLibrary>
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Development\openxt\windows\xc-windows\xenuser\XenPVDAccess;C:\Development\openxt\windows\xc-windows\pvdrivers\win\xeniface\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Development\openxt\windows\xc-windows\xenuser\XenPVDAccess;C:\Development\openxt\windows\xc-windows\pvdrivers\win\xenbus\include\OpenXTV4V;C:\Development\openxt\windows\xc-windows\pvdrivers\win\xeniface\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(XenGuestAgentOutputDir)\</OutDir>
@@ -86,7 +86,7 @@
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>user32.lib;uuid.lib;kernel32.lib;powrprof.lib;./wlanapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>user32.lib;uuid.lib;kernel32.lib;powrprof.lib;./wlanapi.lib;Setupapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(XenClientLibJSONLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>

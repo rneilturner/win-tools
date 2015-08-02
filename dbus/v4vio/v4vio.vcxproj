@@ -93,6 +93,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugDLL|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <TargetName>$(V4VioLibName)</TargetName>
+    <IncludePath>C:\Development\openxt\windows\xc-windows\xenuser\XenPVDAccess;C:\Development\openxt\windows\xc-windows\pvdrivers\win\xeniface\include;C:\Development\openxt\windows\xc-windows\pvdrivers\win\xenbus\include\OpenXTV4V;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseStaticLib|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -126,6 +127,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>Setupapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseStaticLib|Win32'">
